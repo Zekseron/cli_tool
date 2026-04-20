@@ -92,7 +92,7 @@
                                 <button onclick="generateWithAI()" id="aiBtn" class="absolute right-2 top-1.5 p-1.5 bg-blue-600 hover:bg-blue-500 rounded-md transition-colors" title="Genera con IA">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                         <path fill-rule="evenodd" d="M11.3 1.047a.75.75 0 01.974.134l3.5 4.5a.75.75 0 01-.112 1.056l-5 4.5a.75.75 0 11-1.012-1.123l4.24-3.816-2.951-3.793a.75.75 0 01.361-1.158zM4.7 18.953a.75.75 0 01-.974-.134l-3.5-4.5a.75.75 0 01.112-1.056l5-4.5a.75.75 0 111.012 1.123l-4.24 3.816 2.951 3.793a.75.75 0 01-.361 1.158z" clip-rule="evenodd" />
-                                        <path fill-rule="evenodd" d="M12.3 18.953a.75.75 0 00.974-.134l3.5-4.5a.75.75 0 00-.112-1.056l-5-4.5a.75.75 0 10-1.012 1.123l4.24 3.816-2.951 3.793a.75.75 0 00.361 1.158zM7.7 1.047a.75.75 0 00-.974.134l-3.5 4.5a.75.75 0 00.112 1.056l5-4.5a.75.75 0 101.012-1.123L5.138 5.25l2.951-3.793a.75.75 0 00-.361-1.158z" clip-rule="evenodd" />
+                                        <path fill-rule="evenodd" d="M12.3 18.953a.75.75 0 00.974-.134l3.5-4.5a.75.75 0 00-.112-1.056l-5-4.5a.75.75 0 10-1.012 1.123l4.24 3.816-2.951-3.793a.75.75 0 00.361 1.158zM7.7 1.047a.75.75 0 00-.974.134l-3.5 4.5a.75.75 0 00.112 1.056l5-4.5a.75.75 0 101.012-1.123L5.138 5.25l2.951-3.793a.75.75 0 00-.361-1.158z" clip-rule="evenodd" />
                                     </svg>
                                 </button>
                             </div>
@@ -175,7 +175,7 @@
 
             aiBtn.disabled = true;
             panel.classList.add('ai-loading');
-            cmdOutput.placeholder = "Generazione in corso...";
+            cmdOutput.placeholder = "Generazione in corso (Auto-detect modello)...";
             
             const systemPrompt = `Sei un Senior Network Engineer specializzato in automazione. 
             Genera una lista di comandi CLI per la seguente richiesta.
@@ -187,58 +187,58 @@
             - Rispondi SOLO con il codice dei comandi, un comando per riga.
             - NON usare markdown (\`\`\`), NON aggiungere commenti o spiegazioni.`;
 
-            try {
-                // Modificato l'URL per usare il modello gemini-1.5-flash correttamente
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            // Elenco dei possibili endpoint da testare in caso di 404
+            const endpoints = [
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent",
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+            ];
+
+            let success = false;
+            let lastError = "";
+
+            for (const url of endpoints) {
+                if (success) break;
                 
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ 
-                            parts: [{ text: `${systemPrompt}\n\nRichiesta utente: ${promptInput.value}` }] 
-                        }],
-                        generationConfig: {
-                            temperature: 0.4,
-                            topK: 1,
-                            topP: 1,
-                            maxOutputTokens: 2048,
+                try {
+                    console.log(`Tentativo su endpoint: ${url}`);
+                    const response = await fetch(`${url}?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ 
+                                parts: [{ text: `${systemPrompt}\n\nRichiesta utente: ${promptInput.value}` }] 
+                            }]
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.candidates && result.candidates[0].content) {
+                            const text = result.candidates[0].content.parts[0].text;
+                            cmdOutput.value = text.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '').trim();
+                            showToast("Comandi generati con successo!");
+                            success = true;
                         }
-                    })
-                });
-                
-                if (!response.ok) {
-                    const errorJson = await response.json();
-                    console.error("ERRORE DETTAGLIATO:", errorJson);
-                    
-                    // Gestione specifica degli errori comuni
-                    if (response.status === 404) throw new Error("Modello non trovato. Verifica la versione dell'API.");
-                    if (response.status === 400) throw new Error("Richiesta malformata. Controlla la Key.");
-                    if (response.status === 403) throw new Error("Accesso negato. Key non valida o restrizione geografica.");
-                    
-                    throw new Error(`Errore API: ${response.status}`);
+                    } else {
+                        const errData = await response.json();
+                        lastError = errData.error?.message || response.statusText;
+                        console.warn(`Fallito ${url}: ${lastError}`);
+                    }
+                } catch (e) {
+                    console.warn(`Errore di rete su ${url}`);
                 }
-
-                const result = await response.json();
-                
-                if (result.candidates && result.candidates[0].content) {
-                    const text = result.candidates[0].content.parts[0].text;
-                    // Pulizia finale da eventuali residui di markdown se l'AI ignora le istruzioni
-                    cmdOutput.value = text.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '').trim();
-                    showToast("Comandi generati!");
-                } else {
-                    throw new Error("Risposta AI vuota o bloccata dai filtri di sicurezza.");
-                }
-
-            } catch (error) {
-                console.error("Errore Generazione:", error);
-                cmdOutput.value = "";
-                cmdOutput.placeholder = "Errore durante la generazione...";
-                showToast(error.message);
-            } finally {
-                aiBtn.disabled = false;
-                panel.classList.remove('ai-loading');
             }
+
+            if (!success) {
+                console.error("Tutti gli endpoint hanno fallito.");
+                cmdOutput.value = "";
+                cmdOutput.placeholder = "Errore critico: Modello non trovato o Key non valida.";
+                showToast(`Errore: ${lastError || "Controlla la console"}`);
+            }
+
+            aiBtn.disabled = false;
+            panel.classList.remove('ai-loading');
         }
 
         function saveTask() {
@@ -271,7 +271,6 @@
             const task = tasks.find(t => t.id === id);
             const text = task.mode === 'cisco' ? task.commands.join('\n') : task.commands.join(' && ');
             
-            // Metodo di copia robusto
             const textArea = document.createElement("textarea");
             textArea.value = text;
             document.body.appendChild(textArea);
