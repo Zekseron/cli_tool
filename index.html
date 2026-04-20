@@ -175,7 +175,7 @@
 
             aiBtn.disabled = true;
             panel.classList.add('ai-loading');
-            cmdOutput.placeholder = "Verifica connettività AI...";
+            cmdOutput.placeholder = "Richiesta AI in corso...";
             
             const systemPrompt = `Sei un Senior Network Engineer specializzato in automazione. 
             Genera una lista di comandi CLI per la seguente richiesta.
@@ -187,11 +187,11 @@
             - Rispondi SOLO con il codice dei comandi, un comando per riga.
             - NON usare markdown (\`\`\`), NON aggiungere commenti o spiegazioni.`;
 
-            // Strategia di rotazione basata su versioni diverse
+            // Aggiornato con i nomi modelli più recenti e compatibili basandoci sul log 404
             const configs = [
-                { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent", label: "v1beta Flash" },
-                { url: "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent", label: "v1 Stable Flash" },
-                { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent", label: "v1beta Pro" }
+                { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent", label: "Gemini 2.0 Flash" },
+                { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent", label: "Gemini 1.5 Latest" },
+                { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent", label: "Gemini 1.5 Pro" }
             ];
 
             let success = false;
@@ -201,7 +201,6 @@
                 if (success) break;
                 
                 try {
-                    console.log(`Tentativo con ${config.label}...`);
                     const response = await fetch(`${config.url}?key=${apiKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -218,21 +217,21 @@
                         if (result.candidates && result.candidates[0].content) {
                             const text = result.candidates[0].content.parts[0].text;
                             cmdOutput.value = text.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '').trim();
-                            showToast("IA Risponde!");
+                            showToast(`Successo con ${config.label}`);
                             success = true;
                         }
                     } else {
                         const msg = result.error?.message || response.statusText;
-                        debugLog.push(`${config.label}: ${response.status} (${msg})`);
+                        debugLog.push(`${config.label}: ${response.status} - ${msg}`);
                     }
                 } catch (e) {
-                    debugLog.push(`${config.label}: Network Error`);
+                    debugLog.push(`${config.label}: Errore di connessione`);
                 }
             }
 
             if (!success) {
-                cmdOutput.value = "LOG ERRORI:\n" + debugLog.join('\n');
-                showToast("Errore di connessione AI.");
+                cmdOutput.value = "ERRORE CRITICO:\nL'API Google non riconosce i modelli standard con la tua chiave.\n\n" + debugLog.join('\n') + "\n\nSuggerimento: Verifica in Google AI Studio se il modello 'Gemini 1.5 Flash' è attivo nel tuo piano.";
+                showToast("Errore di configurazione API.");
             }
 
             aiBtn.disabled = false;
